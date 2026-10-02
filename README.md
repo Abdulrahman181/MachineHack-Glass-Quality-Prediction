@@ -1,81 +1,37 @@
-# Glass Grade Prediction using Machine Learning
+# Glass Quality Prediction — Weekend Hackathon 6
 
-Humans have been using glass since ancient times in various applications — from building construction to decorative art. With advancements in technology, glass has evolved, and today it is used in diverse fields such as computer monitors, smartphone screens, and even bulletproof windows. The type and grade of glass used in each application vary significantly based on its composition and intended purpose.
+This repository contains a Jupyter notebook for an Extra Trees classification baseline for the Glass Quality Prediction challenge. The data files are **not included**; the notebook cannot be run end to end until the original challenge data is obtained separately.
 
- **Project Objective:**
+## Repository contents
 
-As a data scientist, your objective is to build a machine learning model that can **predict the grade of glass** based on **15 distinguishing features** provided in the dataset.
+- `Glass Quality Prediction  Weekend Hackathon 6 #Rank 3.ipynb` — exploratory analysis, feature engineering, stratified cross-validation, model training, and probability export.
+- `requirements.txt` — pinned Python dependencies for the notebook.
 
----
+## Data expected by the notebook
 
-##  Project Contents
+Place the challenge CSVs in a `data/` directory at the repository root:
 
-- `glass.csv`: Dataset containing physical and chemical properties of glass samples.
-- `glass_prediction.ipynb`: Notebook with data analysis and machine learning model.
-- `README.md`: This file describing the project.
+```text
+data/
+├── Train.csv
+└── Test.csv
+```
 
----
+The training CSV must contain the `class` target and the feature columns used in the notebook; the test CSV must have matching feature columns. Obtain the original files from the challenge provider or an authorized copy. No dataset, sample-submission spreadsheet, or download link is provided in this repository, and none is fabricated here.
 
-##  Machine Learning Algorithms Used
+## Setup and run
 
-- Logistic Regression
-- Decision Tree
-- Random Forest
-- Support Vector Machine (SVM)
-- K-Nearest Neighbors (KNN)
-- Additional models for performance comparison
+Use Python 3.10–3.12 in a virtual environment. From the repository root:
 
----
+```bash
+python -m venv .venv
+# Activate the environment using the command for your operating system.
+python -m pip install -r requirements.txt
+jupyter lab
+```
 
-## Project Workflow
+Open the notebook and run its cells from top to bottom. It reads `data/Train.csv` and `data/Test.csv` relative to the repository root and writes the predicted class probabilities to `extratrees_addv1.xlsx` in the current working directory. The output columns follow the estimator's class order. The notebook does not consume a sample-submission file.
 
-1. **Exploratory Data Analysis (EDA):**
-   - Statistical summary of features
-   - Visualizing distributions and correlations
-2. **Data Preprocessing:**
-   - Handling missing values (if any)
-   - Normalization or feature scaling
-3. **Model Building:**
-   - Training multiple ML models
-   - Comparing their performance
-4. **Model Evaluation:**
-   - Accuracy
-   - Confusion Matrix
-   - Classification Report
+## Validation and limitations
 
----
-
-##  Tools & Technologies
-
-- Python 3
-- Pandas & NumPy
-- Scikit-learn
-- Matplotlib & Seaborn
-- Jupyter Notebook
-
----
-
-##  Outcome
-
-The final goal is to develop an accurate and reliable model that can classify the **grade of glass** based on input features.
-
----
-
-##  Who is this for?
-
-- Data Science students and enthusiasts
-- Machine Learning practitioners
-- Researchers in material sciences and glass manufacturing
-
----
-
-##  Notes
-
-> This project can be further enhanced using deep learning techniques, hyperparameter tuning (GridSearch, RandomSearch), and cross-validation.
-
----
-
-##  Contact
-
-For questions, suggestions, or collaborations, feel free to reach out via GitHub or email.
-
+Cross-validation uses stratified folds with a fixed random seed and reports mean log loss. The feature selection and preprocessing are intended as a challenge baseline, not a production pipeline. No accuracy or competition score is claimed: this repository does not include its input data, and the model workflow has not been run as part of this maintenance change.
