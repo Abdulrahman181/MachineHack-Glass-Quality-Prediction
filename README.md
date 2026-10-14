@@ -1,81 +1,47 @@
-# Glass Grade Prediction using Machine Learning
+# Glass Quality Prediction — Engineering-maintained baseline
 
-Humans have been using glass since ancient times in various applications — from building construction to decorative art. With advancements in technology, glass has evolved, and today it is used in diverse fields such as computer monitors, smartphone screens, and even bulletproof windows. The type and grade of glass used in each application vary significantly based on its composition and intended purpose.
+This repository contains a reproducible Extra Trees classification baseline for the MachineHack glass quality challenge. The challenge data is **not included**. The workflow refuses to run when the required files are absent or invalid; it does not download, synthesize, or claim results for missing data.
 
- **Project Objective:**
+## Repository contents
 
-As a data scientist, your objective is to build a machine learning model that can **predict the grade of glass** based on **15 distinguishing features** provided in the dataset.
+- `Glass Quality Prediction  Weekend Hackathon 6 #Rank 3.ipynb` — cleaned notebook using the reusable validation/model code.
+- `glass_quality.py` — data-contract validation, row-local feature engineering, deterministic feature selection, stratified log-loss validation, and prediction export.
+- `requirements.txt` — runtime and development dependencies.
+- `tests/test_repository_static.py` — static checks for notebook hygiene and unsafe path/artifact patterns.
+- `ENGINEERING_REVIEW.md` — audit findings, changes, and validation limits.
 
----
+## Data contract
 
-##  Project Contents
+Obtain the authorized challenge files separately and place them here:
 
-- `glass.csv`: Dataset containing physical and chemical properties of glass samples.
-- `glass_prediction.ipynb`: Notebook with data analysis and machine learning model.
-- `README.md`: This file describing the project.
+```text
+data/
+├── Train.csv
+└── Test.csv
+```
 
----
+`Train.csv` must contain a numeric `class` target and numeric feature columns. `Test.csv` must contain exactly the same feature columns (without `class`). Both files must be non-empty and free of missing feature values. The loader reports a clear error for missing files, mismatched schemas, duplicate columns, non-numeric values, missing values, or insufficient class variety. No sample-submission spreadsheet is required.
 
-##  Machine Learning Algorithms Used
+## Setup and run
 
-- Logistic Regression
-- Decision Tree
-- Random Forest
-- Support Vector Machine (SVM)
-- K-Nearest Neighbors (KNN)
-- Additional models for performance comparison
+Use Python 3.10–3.12 from the repository root:
 
----
+```bash
+python -m venv .venv
+. .venv/bin/activate
+python -m pip install -r requirements.txt
+jupyter lab
+```
 
-## Project Workflow
+Open the notebook and run cells top-to-bottom. It writes class-probability columns in estimator class order to `extratrees_addv1.xlsx`. The notebook uses `StratifiedKFold(shuffle=True, random_state=11)` and a fresh seeded Extra Trees estimator in every fold.
 
-1. **Exploratory Data Analysis (EDA):**
-   - Statistical summary of features
-   - Visualizing distributions and correlations
-2. **Data Preprocessing:**
-   - Handling missing values (if any)
-   - Normalization or feature scaling
-3. **Model Building:**
-   - Training multiple ML models
-   - Comparing their performance
-4. **Model Evaluation:**
-   - Accuracy
-   - Confusion Matrix
-   - Classification Report
+For static checks:
 
----
+```bash
+ruff check .
+pytest -q
+```
 
-##  Tools & Technologies
+## Leakage and limitations
 
-- Python 3
-- Pandas & NumPy
-- Scikit-learn
-- Matplotlib & Seaborn
-- Jupyter Notebook
-
----
-
-##  Outcome
-
-The final goal is to develop an accurate and reliable model that can classify the **grade of glass** based on input features.
-
----
-
-##  Who is this for?
-
-- Data Science students and enthusiasts
-- Machine Learning practitioners
-- Researchers in material sciences and glass manufacturing
-
----
-
-##  Notes
-
-> This project can be further enhanced using deep learning techniques, hyperparameter tuning (GridSearch, RandomSearch), and cross-validation.
-
----
-
-##  Contact
-
-For questions, suggestions, or collaborations, feel free to reach out via GitHub or email.
-
+Feature engineering is row-local and does not use the target. Model validation fits each fold separately. Identifier-like columns, the target, and explicitly redundant derived columns from the original notebook are excluded. This remains a challenge baseline rather than a production API; there is no web/API surface in the repository. No accuracy, log-loss result, or competition rank is asserted by this maintenance review because input data is unavailable.
