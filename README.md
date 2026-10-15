@@ -20,7 +20,7 @@ data/
 └── Test.csv
 ```
 
-`Train.csv` must contain a numeric `class` target and numeric feature columns. `Test.csv` must contain exactly the same feature columns (without `class`). Both files must be non-empty and free of missing feature values. The loader reports a clear error for missing files, mismatched schemas, duplicate columns, non-numeric values, missing values, or insufficient class variety. No sample-submission spreadsheet is required.
+`Train.csv` must contain a numeric `class` target and numeric feature columns. The geometry workflow additionally requires `xmax`, `xmin`, `ymax`, `ymin`, `thickness`, `log_area`, and `pixel_area`. `Test.csv` must contain exactly the same feature columns (without `class`). Both files must be non-empty and free of missing or non-finite feature values. The loader reports a clear error for missing files, mismatched schemas, duplicate columns, non-numeric values, missing/infinite values, missing geometry inputs, or insufficient class variety. No sample-submission spreadsheet is required.
 
 ## Setup and run
 

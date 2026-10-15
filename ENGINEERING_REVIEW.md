@@ -47,3 +47,33 @@ There is no web service, public API, credential handling, network download, shel
 ## Remaining limitations
 
 The challenge data is not bundled, so schema-dependent model behavior, class balance, runtime, probability calibration, and competition submission compatibility remain unverified. Users must obtain authorized data separately and run the notebook from the repository root after installing `requirements.txt`.
+
+## Second Senior Review
+
+### Scope and audit approach
+
+The second review re-inspected every tracked file, the complete notebook, Git history and current diff, Python/config/test/README files, dependency bounds, path and secret patterns, notebook execution state, model contracts, split/evaluation logic, and artifact behavior. The repository is still limited to one notebook, one reusable Python module, one dependency file, static tests, and documentation; no web/API surface or model artifact loader exists.
+
+### Findings fixed in this pass
+
+1. **Documented numeric-target contract was not enforced.** `load_data` now rejects non-numeric `class` labels, missing labels, and non-finite numeric labels before model fitting.
+2. **Non-finite feature values could pass the numeric dtype check.** Train and test features now reject `NaN`, positive/negative infinity, and other non-finite values with actionable errors.
+3. **The loader accepted schemas that the notebook could not engineer.** It now explicitly requires the seven geometry inputs used by `create_features`, so invalid challenge files fail at loading rather than midway through the notebook.
+4. **Public helpers had weak preconditions.** `create_features`, cross-validation, and final fitting now validate empty frames, missing/duplicate features, numeric finite matrices, target cardinality, fold feasibility, integer `n_splits`, and the presence of `predict_proba`.
+5. **There were no functional tests for the reusable module.** Added `tests/test_glass_quality.py` covering CSV contracts, finite-value rejection, row-local feature generation, exclusion rules, fresh-estimator cross-validation, class-order probability output, and early failure on invalid inputs.
+
+### Second-pass verification
+
+- `python -m pytest -q` — 9 tests passed after the second-pass changes.
+- `ruff check .` — passed.
+- `python -m compileall -q glass_quality.py tests` — passed.
+- Notebook JSON, code-cell AST parsing, empty outputs, and null execution counts — passed.
+- Git/status and repository-wide scans found no tracked credentials, hardcoded machine paths, unsafe deserialization, network download, or untracked source/config files required by the workflow.
+- No challenge data was created, downloaded, or used; therefore no model metric, submission artifact, or end-to-end run is claimed.
+
+### Remaining risks after the second review
+
+- The authorized challenge data is absent, so real schema values, class balance, runtime, calibration, and competition submission compatibility remain unverified.
+- Feature exclusion is name-based and cannot prove domain-specific leakage absent provenance; the baseline still requires domain review of the challenge columns.
+- The notebook writes an `.xlsx` probability table, but the competition's exact submission schema is not available for confirmation.
+- Dependency ranges are bounded major-version ranges rather than a lockfile; exact transitive environments may differ.

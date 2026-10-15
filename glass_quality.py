@@ -5,6 +5,7 @@ from __future__ import annotations
 from collections.abc import Iterable
 from pathlib import Path
 
+import numpy as np
 import pandas as pd
 from sklearn.base import ClassifierMixin, clone
 from sklearn.ensemble import ExtraTreesClassifier
@@ -24,6 +25,53 @@ def _missing_message(path: Path) -> str:
         "Train.csv and Test.csv files and place them under data/; no data is bundled "
         "with this repository."
     )
+
+
+def _validate_numeric_values(frame: pd.DataFrame, columns: Iterable[str], context: str) -> None:
+    """Reject missing, non-numeric, and infinite values before model operations."""
+    columns = list(columns)
+    non_numeric = [
+        column for column in columns if not pd.api.types.is_numeric_dtype(frame[column])
+    ]
+    if non_numeric:
+        raise ValueError(f"{context} must be numeric; non-numeric columns: {non_numeric}.")
+    if frame[columns].isna().any().any():
+        raise ValueError(f"{context} contains missing values; imputation is not silently applied.")
+    values = frame[columns].to_numpy(dtype=float, copy=False)
+    if not np.isfinite(values).all():
+        raise ValueError(f"{context} contains infinite or non-finite values.")
+
+
+def _validate_features(frame: pd.DataFrame, features: list[str], context: str) -> None:
+    """Validate a model feature matrix and give callers actionable errors."""
+    if not features:
+        raise ValueError("At least one model feature is required.")
+    if len(features) != len(set(features)):
+        raise ValueError("Model feature names must be unique.")
+    missing = [column for column in features if column not in frame.columns]
+    if missing:
+        raise ValueError(f"{context} is missing model features: {missing}.")
+    _validate_numeric_values(frame, features, f"{context} model features")
+
+
+def _validate_target(
+    frame: pd.DataFrame, target: str, *, require_numeric: bool = False
+) -> pd.Series:
+    """Validate labels used by either cross-validation or final fitting."""
+    if target not in frame.columns:
+        raise ValueError(f"Training frame is missing target column {target!r}.")
+    labels = frame[target]
+    if labels.empty:
+        raise ValueError("Training data must contain at least one row.")
+    if labels.isna().any():
+        raise ValueError(f"Training target {target!r} contains missing labels.")
+    if require_numeric and not pd.api.types.is_numeric_dtype(labels):
+        raise ValueError(f"Training target {target!r} must be numeric.")
+    if pd.api.types.is_numeric_dtype(labels) and not np.isfinite(labels.to_numpy(dtype=float)).all():
+        raise ValueError(f"Training target {target!r} contains infinite or non-finite labels.")
+    if labels.nunique() < 2:
+        raise ValueError("The target must contain at least two classes for classification.")
+    return labels
 
 
 def load_data(data_dir: str | Path = "data") -> tuple[pd.DataFrame, pd.DataFrame]:
@@ -52,39 +100,47 @@ def load_data(data_dir: str | Path = "data") -> tuple[pd.DataFrame, pd.DataFrame
             "Train/Test feature columns do not match. "
             f"Missing from Test.csv: {missing}; unexpected in Test.csv: {extra}."
         )
-    if train[TARGET].isna().any():
-        raise ValueError("Train.csv contains missing target labels in the 'class' column.")
-    if train[TARGET].nunique() < 2:
-        raise ValueError("The target must contain at least two classes for classification.")
-    non_numeric = [
-        column
-        for column in train_features
-        if not pd.api.types.is_numeric_dtype(train[column])
-        or not pd.api.types.is_numeric_dtype(test[column])
+    _validate_target(train, TARGET, require_numeric=True)
+    _validate_numeric_values(train, train_features, "Train.csv features")
+    _validate_numeric_values(test, train_features, "Test.csv features")
+    missing_engineering_inputs = [
+        column for column in ENGINEERED_INPUTS if column not in train_features
     ]
-    if non_numeric:
-        raise ValueError(f"All model features must be numeric; non-numeric columns: {non_numeric}.")
-    if train[train_features].isna().any().any() or test[train_features].isna().any().any():
-        raise ValueError("Train.csv/Test.csv contain missing feature values; imputation is not silently applied.")
+    if missing_engineering_inputs:
+        raise ValueError(
+            "Train.csv/Test.csv are missing required geometry columns for this workflow: "
+            f"{missing_engineering_inputs}."
+        )
     return train, test
 
 
 def create_features(frame: pd.DataFrame) -> pd.DataFrame:
     """Create row-local geometry features; this function never reads the target."""
+    if frame.columns.duplicated().any():
+        raise ValueError("Feature-engineering input must not contain duplicate column names.")
     missing = [column for column in ENGINEERED_INPUTS if column not in frame.columns]
     if missing:
         raise ValueError(f"Cannot create geometry features; missing columns: {missing}.")
+    if frame.empty:
+        raise ValueError("Cannot create geometry features from an empty frame.")
+    _validate_numeric_values(frame, ENGINEERED_INPUTS, "Geometry inputs")
     result = frame.copy()
-    result["x"] = result["xmax"] - result["xmin"]
-    result["y"] = result["ymax"] - result["ymin"]
-    result["area"] = result["x"] * result["y"].abs()
-    result["volume"] = result["area"] * result["thickness"]
-    result["diff_area"] = result["log_area"] - result["pixel_area"]
+    with np.errstate(over="ignore", invalid="ignore"):
+        result["x"] = result["xmax"] - result["xmin"]
+        result["y"] = result["ymax"] - result["ymin"]
+        result["area"] = result["x"] * result["y"].abs()
+        result["volume"] = result["area"] * result["thickness"]
+        result["diff_area"] = result["log_area"] - result["pixel_area"]
+    _validate_numeric_values(
+        result, ["x", "y", "area", "volume", "diff_area"], "Derived geometry features"
+    )
     return result
 
 
 def select_feature_columns(frame: pd.DataFrame) -> list[str]:
     """Select features in stable input order and exclude target/derived leakage risks."""
+    if frame.columns.duplicated().any():
+        raise ValueError("Feature-selection input must not contain duplicate column names.")
     selected = []
     for column in frame.columns:
         normalized = str(column).strip().lower()
@@ -110,11 +166,11 @@ def cross_validate_log_loss(
 ) -> list[float]:
     """Evaluate with shuffled stratified folds, fitting a fresh clone per fold."""
     features = list(features)
-    if n_splits < 2:
-        raise ValueError("n_splits must be at least 2.")
-    if target not in train.columns:
-        raise ValueError(f"Training frame is missing target column {target!r}.")
-    counts = train[target].value_counts()
+    if not isinstance(n_splits, int) or isinstance(n_splits, bool) or n_splits < 2:
+        raise ValueError("n_splits must be an integer of at least 2.")
+    _validate_features(train, features, "Training frame")
+    labels = _validate_target(train, target)
+    counts = labels.value_counts()
     if counts.min() < n_splits:
         raise ValueError(
             f"Each class needs at least {n_splits} rows for stratified validation; "
@@ -122,7 +178,9 @@ def cross_validate_log_loss(
         )
     splitter = StratifiedKFold(n_splits=n_splits, shuffle=True, random_state=RANDOM_STATE)
     scores: list[float] = []
-    X, y = train[features], train[target]
+    if not callable(getattr(model, "predict_proba", None)):
+        raise TypeError("The estimator must provide predict_proba for log-loss validation.")
+    X, y = train[features], labels
     for train_index, validation_index in splitter.split(X, y):
         fitted = clone(model)
         fitted.fit(X.iloc[train_index], y.iloc[train_index])
@@ -140,9 +198,13 @@ def fit_predict(
 ) -> pd.DataFrame:
     """Fit on all labeled rows and return probabilities in estimator class order."""
     features = list(features)
-    missing = [column for column in features if column not in test.columns]
-    if missing:
-        raise ValueError(f"Test frame is missing model features: {missing}.")
+    if train.empty or test.empty:
+        raise ValueError("Training and test data must both contain at least one row.")
+    _validate_features(train, features, "Training frame")
+    _validate_features(test, features, "Test frame")
+    _validate_target(train, target)
+    if not callable(getattr(model, "predict_proba", None)):
+        raise TypeError("The estimator must provide predict_proba for probability output.")
     fitted = clone(model)
     fitted.fit(train[features], train[target])
     probabilities = fitted.predict_proba(test[features])
